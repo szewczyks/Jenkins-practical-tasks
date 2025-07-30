@@ -1,0 +1,57 @@
+pipeline {
+    agent any
+
+    environment {
+        APP_ENV = 'production'
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Install Dependencies') {
+            steps {
+                sh 'python -m venv venv'
+                sh '. venv/bin/activate && pip install -r requirements.txt'
+            }
+        }
+
+        stage('Run Tests') {
+            steps {
+                sh '. venv/bin/activate && pytest --maxfail=1 --disable-warnings -q'
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                sh 'docker build -t flask-api:latest .'
+            }
+        }
+
+        stage('Push to Registry') {
+            steps {
+                echo "Pushing image to Docker Hub or private registry..."
+                // Example: sh 'docker tag flask-api:latest myuser/flask-api:latest && docker push myuser/flask-api:latest'
+            }
+        }
+
+        stage('Deploy to Production') {
+            steps {
+                echo "Deploying to production..."
+                // Example: ssh to server & deploy docker container
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "Production deployment successful"
+        }
+        failure {
+            echo "Pipeline failed. No deployment."
+        }
+    }
+}
