@@ -1,29 +1,38 @@
 pipeline {
     agent any
+
     options {
-        skipDefaultCheckout(true)  // <--- disable auto checkout
+        skipDefaultCheckout(true)        // blokujemy domyślne SCM
     }
+
     environment {
         DOCKER_IMAGE = 'flask-ci-cd'
     }
 
     stages {
+
+        /* ---------- CHECKOUT & STASH ---------- */
         stage('Checkout') {
             steps {
                 cleanWs()
                 checkout scm
-                sh 'git status'
+                sh 'git status -sb'
+                // zapisz całe repo do stash'a o nazwie "src"
+                stash name: 'src', includes: '**/*'
             }
         }
 
+        /* ---------- TESTS in Python container ---------- */
         stage('Run Tests') {
             agent {
                 docker {
                     image 'python:3.11'
-                    args '-u root:root'
+                    args  '-u root:root'
+                    reuseNode true              // użyj tego samego workspace
                 }
             }
             steps {
+                unstash 'src'                  // przywracamy kod w kontenerze
                 sh '''
                     python -m venv venv
                     ./venv/bin/pip install --upgrade pip
@@ -33,8 +42,10 @@ pipeline {
             }
         }
 
+        /* ---------- BUILD Docker image ---------- */
         stage('Build Docker Image') {
             steps {
+                unstash 'src'                  // na wszelki wypadek (gdyby workspace był pusty)
                 script {
                     def tag = (env.BRANCH_NAME == 'main') ? 'latest' : env.BRANCH_NAME
                     sh """
@@ -46,6 +57,7 @@ pipeline {
             }
         }
 
+        /* ---------- DEPLOY locally ---------- */
         stage('Deploy (Local)') {
             when { branch 'main' }
             steps {
