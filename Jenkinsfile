@@ -1,25 +1,26 @@
 pipeline {
     agent any
+    options {
+        skipDefaultCheckout(true)  // <--- disable auto checkout
+    }
     environment {
         DOCKER_IMAGE = 'flask-ci-cd'
     }
 
     stages {
-        /* ---------- CHECKOUT ---------- */
         stage('Checkout') {
             steps {
-                cleanWs()  // ensures a clean workspace for multibranch builds
+                cleanWs()
                 checkout scm
                 sh 'git status'
             }
         }
 
-        /* ---------- TESTS in Python container ---------- */
         stage('Run Tests') {
             agent {
                 docker {
                     image 'python:3.11'
-                    args '-u root:root'  // run as root to install deps
+                    args '-u root:root'
                 }
             }
             steps {
@@ -32,7 +33,6 @@ pipeline {
             }
         }
 
-        /* ---------- BUILD Docker image ---------- */
         stage('Build Docker Image') {
             steps {
                 script {
@@ -46,7 +46,6 @@ pipeline {
             }
         }
 
-        /* ---------- DEPLOY locally ---------- */
         stage('Deploy (Local)') {
             when { branch 'main' }
             steps {
@@ -61,7 +60,7 @@ pipeline {
 
     post {
         always {
-            cleanWs()  // clean workspace after each build to prevent Git issues
+            cleanWs()
         }
     }
 }
