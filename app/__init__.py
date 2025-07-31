@@ -1,6 +1,20 @@
-from app import create_app
+import numpy as np
+from flask import Flask
 
-app = create_app()
+def create_app():
+    app = Flask(__name__)
 
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    @app.route("/")
+    def index():
+        return {"message": "Hello from Flask API!"}
+    
+    @app.route("/health")
+    def health():
+        return {"status": "healthy"}
+    
+    @app.route("/random")
+    def random_number():
+        random_value = np.random.randint(1, 100)
+        return {"random_number": int(random_value)}
+
+    return app
