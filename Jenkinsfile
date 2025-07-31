@@ -63,8 +63,8 @@ pipeline {
             steps {
                 sh '''
                     cd docker
-                    docker compose down || true
-                    docker compose up -d --build
+                    docker-compose down || true
+                    docker-compose up -d --build
                 '''
             }
         }
