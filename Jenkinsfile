@@ -5,12 +5,21 @@ pipeline {
     }
 
     stages {
+        /* ---------- CHECKOUT ---------- */
+        stage('Checkout') {
+            steps {
+                cleanWs()  // ensures a clean workspace for multibranch builds
+                checkout scm
+                sh 'git status'
+            }
+        }
+
         /* ---------- TESTS in Python container ---------- */
         stage('Run Tests') {
             agent {
                 docker {
                     image 'python:3.11'
-                    args '-u root:root'     // run as root to allow installing deps
+                    args '-u root:root'  // run as root to install deps
                 }
             }
             steps {
@@ -52,7 +61,7 @@ pipeline {
 
     post {
         always {
-            cleanWs()  // clean Jenkins workspace after job
+            cleanWs()  // clean workspace after each build to prevent Git issues
         }
     }
 }
