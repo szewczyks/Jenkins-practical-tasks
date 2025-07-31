@@ -1,5 +1,10 @@
 pipeline {
-    agent any
+    agent {
+        docker {
+            image 'python:3.11'
+            args '-u root:root'
+        }
+    }
 
     environment {
         VENV_DIR = 'venv'
@@ -13,17 +18,17 @@ pipeline {
                 checkout scm
             }
         }
-        stage('Setup Python in Docker') {
+        stage('Setup Python') {
             steps {
-                script {
-                    docker.image('python:3.11').inside('--user root:root') {
-                        sh 'python3 -m venv ${VENV_DIR}'
-                        sh './${VENV_DIR}/bin/pip install --upgrade pip'
-                        sh './${VENV_DIR}/bin/pip install -r requirements.txt'
-                        sh './${VENV_DIR}/bin/pip install pytest'
-                        sh './${VENV_DIR}/bin/pytest --maxfail=1 --disable-warnings -v'
-                    }
-                }
+                sh 'python3 -m venv ${VENV_DIR}'
+                sh './${VENV_DIR}/bin/pip install --upgrade pip'
+                sh './${VENV_DIR}/bin/pip install -r requirements.txt'
+                sh './${VENV_DIR}/bin/pip install pytest'
+            }
+        }
+        stage('Run Tests') {
+            steps {
+                sh './${VENV_DIR}/bin/pytest --maxfail=1 --disable-warnings -v'
             }
         }
         stage('Build Docker Image') {
@@ -36,8 +41,11 @@ pipeline {
         }
         stage('Deploy (Local)') {
             steps {
-                sh "cd docker && docker-compose down || true"
-                sh "cd docker && docker-compose up -d --build"
+                script {
+                    echo "Deploying branch ${env.BRANCH_NAME}..."
+                    sh "cd docker && docker-compose down || true"
+                    sh "cd docker && docker-compose up -d --build"
+                }
             }
         }
     }
