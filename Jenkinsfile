@@ -1,57 +1,58 @@
 pipeline {
-    agent {
-        docker {
-            image 'python:3.11'
-            args '-u root:root'
-        }
-    }
-
+    agent any
     environment {
-        VENV_DIR = 'venv'
-        APP_NAME = 'flask-app'
         DOCKER_IMAGE = 'flask-ci-cd'
     }
 
     stages {
-        stage('Checkout') {
-            steps {
-                checkout scm
-            }
-        }
-        stage('Setup Python') {
-            steps {
-                sh 'python3 -m venv ${VENV_DIR}'
-                sh './${VENV_DIR}/bin/pip install --upgrade pip'
-                sh './${VENV_DIR}/bin/pip install -r requirements.txt'
-                sh './${VENV_DIR}/bin/pip install pytest'
-            }
-        }
+        /* ---------- TESTS in Python container ---------- */
         stage('Run Tests') {
+            agent {
+                docker {
+                    image 'python:3.11'
+                    args '-u root:root'     // run as root to allow installing deps
+                }
+            }
             steps {
-                sh './${VENV_DIR}/bin/pytest --maxfail=1 --disable-warnings -v'
+                sh '''
+                    python -m venv venv
+                    ./venv/bin/pip install --upgrade pip
+                    ./venv/bin/pip install -r requirements.txt pytest
+                    ./venv/bin/pytest -q
+                '''
             }
         }
+
+        /* ---------- BUILD Docker image ---------- */
         stage('Build Docker Image') {
             steps {
                 script {
-                    def tag = env.BRANCH_NAME == 'main' ? 'latest' : env.BRANCH_NAME
-                    sh "docker build -t ${DOCKER_IMAGE}:${tag} -f docker/Dockerfile ."
+                    def tag = (env.BRANCH_NAME == 'main') ? 'latest' : env.BRANCH_NAME
+                    sh """
+                        docker build \
+                          -t ${DOCKER_IMAGE}:${tag} \
+                          -f docker/Dockerfile .
+                    """
                 }
             }
         }
+
+        /* ---------- DEPLOY locally ---------- */
         stage('Deploy (Local)') {
+            when { branch 'main' }
             steps {
-                script {
-                    echo "Deploying branch ${env.BRANCH_NAME}..."
-                    sh "cd docker && docker-compose down || true"
-                    sh "cd docker && docker-compose up -d --build"
-                }
+                sh '''
+                    cd docker
+                    docker compose down || true
+                    docker compose up -d --build
+                '''
             }
         }
     }
+
     post {
         always {
-            cleanWs()
+            cleanWs()  // clean Jenkins workspace after job
         }
     }
 }
