@@ -1,20 +1,10 @@
-import numpy as np
 from flask import Flask
+import numpy as np
 
 def create_app():
     app = Flask(__name__)
 
-    @app.route("/")
-    def index():
-        return {"message": "Hello from Flask API!"}
-    
-    @app.route("/health")
-    def health():
-        return {"status": "healthy"}
-    
-    @app.route("/random")
-    def random_number():
-        random_value = np.random.randint(1, 100)
-        return {"random_number": int(random_value)}
+    from app.routes import register_routes
+    register_routes(app)
 
     return app
