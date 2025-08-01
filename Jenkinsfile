@@ -2,7 +2,9 @@ pipeline {
     agent any
 
     options {
-        skipDefaultCheckout(true)        // blokujemy domyślne SCM
+        skipDefaultCheckout(true)       // blocks default Source Control Management checkout
+        timestamps()                    // add timestamps to console output
+        ansiColor('xterm')              // colorize console output
     }
 
     environment {
@@ -11,28 +13,24 @@ pipeline {
 
     stages {
 
-        /* ---------- CHECKOUT & STASH ---------- */
-        stage('Checkout') {
+        stage('Source Code Checkout') {
             steps {
-                cleanWs()
+                cleanWs()               // clean workspace before checkout
                 checkout scm
-                sh 'git status -sb'
-                // zapisz całe repo do stash'a o nazwie "src"
-                stash name: 'src', includes: '**/*'
+                stash name: 'workspace-src', includes: '**/*'
             }
         }
 
-        /* ---------- TESTS in Python container ---------- */
         stage('Run Tests') {
             agent {
                 docker {
                     image 'python:3.11'
                     args  '-u root:root'
-                    reuseNode true              // użyj tego samego workspace
+                    reuseNode true      // use the same workspace
                 }
             }
             steps {
-                unstash 'src'                  // przywracamy kod w kontenerze
+                unstash 'workspace-src'
                 sh '''
                     python -m venv venv
                     ./venv/bin/pip install --upgrade pip
@@ -42,22 +40,16 @@ pipeline {
             }
         }
 
-        /* ---------- BUILD Docker image ---------- */
         stage('Build Docker Image') {
             steps {
-                unstash 'src'                  // na wszelki wypadek (gdyby workspace był pusty)
+                // unstash 'workspace-src'
                 script {
-                    def tag = (env.BRANCH_NAME == 'main') ? 'latest' : env.BRANCH_NAME
-                    sh """
-                        docker build \
-                          -t ${DOCKER_IMAGE}:${tag} \
-                          -f docker/Dockerfile .
-                    """
+                    env.TAG = (env.BRANCH_NAME == 'main') ? 'latest' : env.BRANCH_NAME
+                    sh "docker build -t ${DOCKER_IMAGE}:${TAG} -f docker/Dockerfile ."
                 }
             }
         }
 
-        /* ---------- DEPLOY locally ---------- */
         stage('Deploy (Local)') {
             when { branch 'main' }
             steps {
